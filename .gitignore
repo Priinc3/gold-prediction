@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+backend/.env
+
+# Node
+node_modules/
+dist/
+.vercel/
+
+# Data
+backend/data/*.db
+data/chroma_db/
+backend/data/images/
+
+# System
+.DS_Store
