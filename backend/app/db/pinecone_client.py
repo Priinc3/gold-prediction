@@ -2,6 +2,15 @@ from pinecone import Pinecone, ServerlessSpec
 from app.core.config import settings
 from loguru import logger
 import time
+import json
+
+# Density Mapping (g/mm3)
+GOLD_DENSITIES = {
+    "14K": 0.01307,
+    "18K": 0.01558,
+    "22K": 0.01750,
+    "24K": 0.01930
+}
 
 class PineconeDB:
     def __init__(self):
@@ -32,8 +41,6 @@ class PineconeDB:
         logger.info(f"PineconeDB initialized with index {self.index_name}")
 
     def add_prediction(self, prediction_id: str, embedding: list, metadata: dict):
-        # Pinecone metadata must be flat or lists of strings/numbers
-        # Ensure metadata is clean and contains no None or NaN values
         import pandas as pd
         clean_metadata = {}
         for k, v in metadata.items():
@@ -59,8 +66,17 @@ class PineconeDB:
         formatted = []
         for match in results['matches']:
             meta = match['metadata']
+            
             # Map dataset fields or prediction fields
             weight = meta.get("actual_weight_g") or meta.get("predicted_weight_14k")
+            karat = str(meta.get("karat", "18K")).upper()
+            
+            # Use pre-calculated volume if available, otherwise calculate on the fly
+            volume = meta.get("actual_volume_mm3")
+            if volume is None and weight is not None:
+                density = GOLD_DENSITIES.get(karat, GOLD_DENSITIES["18K"])
+                volume = weight / density
+
             stone_ct = meta.get("diamond_weight_carats") or meta.get("stone_ct") or 0.0
             
             formatted.append({
@@ -71,13 +87,10 @@ class PineconeDB:
                     "stone_ct": stone_ct,
                     "side_stone_count": meta.get("side_stone_count", 0),
                     "metal_color": meta.get("metal_color"),
-                    "karat": meta.get("karat")
+                    "karat": karat
                 },
                 "actual_weight": weight,
+                "actual_volume_mm3": volume,
                 "score": match['score']
             })
         return formatted
-
-# In a real app, we'd use a factory pattern. 
-# For now, let's keep it simple and update get_vector_db in chroma_client.py 
-# or a new shared location.

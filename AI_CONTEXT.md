@@ -1,47 +1,32 @@
 # AI Context — Gold Weight Prediction System
 
 ## Overview
-- **Purpose**: AI-powered system to predict gold weight for jewelry designs based on images and parameters.
-- **Stack**: React (Frontend), FastAPI (Backend), XGBoost (ML), Pinecone/ChromaDB (Vector DB), Gemini/Claude (LLM).
-- **Status**: Phase 2 Complete (transitioning to Phase 3)
-- **Version**: 0.3.1
+- **Purpose**: AI-powered gold weight and volume prediction for jewelry designs using Visual RAG and multi-karat calculations.
+- **Stack**: FastAPI (Python), React (Vite/TS), CLIP (Embeddings), Pinecone (Vector DB), SQLite (Metadata), Gemini 3 Flash Preview (LLM).
+- **Status**: In Development (v0.2.0)
+- **Version**: 0.2.0
 - **Last Updated**: 2026-05-02
 
-## File Structure
-- `backend/`: FastAPI application, ML models, and database.
-- `frontend/`: React application with Tailwind CSS.
-- `project_guide.md`: Detailed project specification.
-- `AI_CONTEXT.md`: This file.
-- `CHANGELOG.md`: Project change history.
+## Core Logic: Volume-First
+To ensure consistency across different materials, the system follows a **Volume-First** approach:
+1.  **AI Estimation:** The LLM analyzes the image and estimates the material **Volume (mm³)**.
+2.  **Karat Conversion:** Backend applies standard densities to calculate weights:
+    - 14K: 13.07 g/cm³
+    - 18K: 15.58 g/cm³
+    - 22K: 17.50 g/cm³
+3.  **Safety Buffer:** The AI is biased towards overestimation to provide a "Safe Cap" for manufacturing.
 
 ## Key Components
 | Component | File | Purpose |
 |-----------|------|---------|
-| Prediction API | `backend/app/api/endpoints.py` | Main entry point for prediction and RAG. |
-| Vector DB | `backend/app/db/` | Factory for Pinecone and ChromaDB clients. |
-| CLIP Encoder | `backend/app/core/embeddings.py` | Image embedding generator (ViT-B-32). |
-| LLM Utils | `backend/app/api/llm_utils.py` | Prompt engineering and API logic. |
-
-## Environment Variables
-| Variable | Description | Required? |
-|----------|-------------|-----------|
-| `ANTHROPIC_API_KEY` | API key for Claude LLM | Optional |
-| `GEMINI_API_KEY` | API key for Gemini LLM | Optional |
-| `PINECONE_API_KEY` | API key for Pinecone Vector DB | Yes (for Pinecone) |
-| `VECTOR_DB_TYPE` | `pinecone` or `chroma` | Yes |
-| `DATABASE_URL` | SQLite connection string | Yes |
-
-## API Endpoints
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /api/v1/predict | Ensemble prediction (LLM + RAP context). |
-| POST | /api/v1/search | RAG Search: Image -> Top-5 similar rings. |
-| GET | /api/v1/history | Prediction history retrieval. |
-
-## Known Issues
-- XGBoost model (Phase 3) is the next focus.
+| Prediction Engine | `backend/app/api/llm_utils.py` | Volume estimation and density calculations. |
+| RAG Retrieval | `backend/app/db/pinecone_client.py` | Visual similarity search for historical anchoring. |
+| Ingestion API | `backend/app/api/endpoints.py` | Endpoint to add verified designs to training pool. |
+| Admin Panel | `frontend/src/components/AdminPanel.tsx` | Settings and Training Data entry. |
 
 ## Next Steps
-- [x] Phase 1: Foundation (Backend + Frontend).
-- [x] Phase 2: Vector Database (CLIP + Chroma/Pinecone).
-- [ ] Phase 3: XGBoost Model training on enriched dataset.
+- [x] Volume-based prediction logic.
+- [x] 22K support.
+- [x] Verified data ingestion form.
+- [ ] XGBoost training on tabular data (Phase 3).
+- [ ] Exporting predictions to CSV.

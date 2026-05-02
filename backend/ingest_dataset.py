@@ -9,7 +9,15 @@ import json
 sys.path.append(os.path.join(os.getcwd(), "backend"))
 
 from app.core.embeddings import get_clip_encoder
-from app.db.chroma_client import get_vector_db
+from app.db.pinecone_client import PineconeDB
+
+# Density Mapping (g/mm3)
+GOLD_DENSITIES = {
+    "14K": 0.01307,
+    "18K": 0.01558,
+    "22K": 0.01750,
+    "24K": 0.01930
+}
 
 def ingest():
     csv_path = "Tanishq_Jewelry_Dataset_Final/tanishq_jewelry_enriched.csv"
@@ -19,7 +27,7 @@ def ingest():
 
     df = pd.read_csv(csv_path)
     encoder = get_clip_encoder()
-    vdb = get_vector_db()
+    vdb = PineconeDB()
 
     print(f"Starting ingestion of {len(df)} products...")
 
@@ -36,12 +44,19 @@ def ingest():
             # Generate embedding
             embedding = encoder.get_image_embedding(img_bytes)
             
+            # Calculate Volume
+            weight = float(row['gold_weight_grams'])
+            karat = str(row['gold_karat_purity']).upper()
+            density = GOLD_DENSITIES.get(karat, GOLD_DENSITIES["18K"])
+            volume = weight / density
+
             # Prepare metadata
             metadata = {
                 "product_id": str(row['product_id']),
                 "product_name": str(row['product_name']),
-                "actual_weight_g": float(row['gold_weight_grams']),
-                "karat": str(row['gold_karat_purity']),
+                "actual_weight_g": weight,
+                "actual_volume_mm3": volume,
+                "karat": karat,
                 "metal_color": str(row['metal_color']),
                 "diamond_weight_carats": float(row['diamond_weight_carats']) if not pd.isna(row['diamond_weight_carats']) else 0.0,
                 "stone_type": str(row['stone_type']),

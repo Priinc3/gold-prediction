@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.prediction import Prediction
-from app.models.schemas import PredictionResponse, UnifiedPredictionResponse
-from app.api.llm_utils import get_llm_prediction
+from app.models.schemas import PredictionResponse, UnifiedPredictionResponse, VerifiedDesignCreate, VerifiedDesignResponse
+from app.api.llm_utils import get_llm_prediction, GOLD_DENSITIES
 from app.core.embeddings import get_clip_encoder
 from app.db.chroma_client import get_vector_db
 import json
@@ -34,6 +34,8 @@ async def search_similar_rings(
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+from typing import List
+
 @router.post("/predict", response_model=UnifiedPredictionResponse)
 async def predict_gold_weight(
     ring_size: float = Form(None),
@@ -45,18 +47,24 @@ async def predict_gold_weight(
     stone_ct: float = Form(None),
     side_stone_count: int = Form(0),
     side_stone_ct: float = Form(0.0),
-    image: UploadFile = File(...),
+    images: List[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db)
 ):
-    # Save image
+    # Save images
     os.makedirs("data/images", exist_ok=True)
-    image_ext = os.path.splitext(image.filename)[1]
-    image_filename = f"{uuid.uuid4()}{image_ext}"
-    image_path = f"data/images/{image_filename}"
+    image_paths = []
+    all_image_bytes = []
     
-    image_bytes = await image.read()
-    with open(image_path, "wb") as f:
-        f.write(image_bytes)
+    for img_file in images[:3]: # Limit to 3 images
+        image_ext = os.path.splitext(img_file.filename)[1]
+        image_filename = f"{uuid.uuid4()}{image_ext}"
+        image_path = f"data/images/{image_filename}"
+        
+        content = await img_file.read()
+        all_image_bytes.append(content)
+        with open(image_path, "wb") as f:
+            f.write(content)
+        image_paths.append(image_path)
         
     params = {
         "ring_size": ring_size,
@@ -71,17 +79,24 @@ async def predict_gold_weight(
     }
     
     try:
-        logger.info("Starting prediction process...")
+        logger.info(f"Starting prediction process with {len(all_image_bytes)} images...")
         # Phase 2: Vector Search
         clip = get_clip_encoder()
         vdb = get_vector_db()
         
-        logger.info("Encoding image...")
-        embedding = clip.get_image_embedding(image_bytes)
+        logger.info("Encoding primary image...")
+        # We use the first image for visual RAG
+        embedding = clip.get_image_embedding(all_image_bytes[0])
         
         logger.info("Querying similar rings...")
         similar_examples = vdb.query_similar(embedding)
         
+        # Inject Volume into examples if missing (for legacy data)
+        for ex in similar_examples:
+            if "actual_volume_mm3" not in ex:
+                density = GOLD_DENSITIES.get(ex.get("karat", "18K").upper(), GOLD_DENSITIES["18K"])
+                ex["actual_volume_mm3"] = ex["actual_weight"] / density
+
         logger.info(f"Retrieved {len(similar_examples)} similar examples from Vector DB")
         
         # Fetch dynamic settings from DB
@@ -92,17 +107,25 @@ async def predict_gold_weight(
         result = await db.execute(stmt)
         config = {s.key: s.value for s in result.scalars().all()}
 
-        # Call LLM with retrieved examples and config
+        # Call LLM with all images
         logger.info(f"Calling LLM ({config.get('default_llm', 'default')})...")
-        prediction_data = await get_llm_prediction(image_bytes, params, config, similar_examples)
+        # NOTE: get_llm_prediction must be updated to handle List[bytes]
+        prediction_data = await get_llm_prediction(all_image_bytes, params, config, similar_examples)
         
         logger.info("Saving prediction to database...")
-        # Save to SQL DB
+        # Save to SQL DB (store first image path as primary)
         new_prediction = Prediction(
             **params,
-            image_path=image_path,
+            image_path=image_paths[0],
+            estimated_volume_mm3=prediction_data.get("estimated_volume_mm3"),
             predicted_weight_14k=prediction_data["predicted_weight_14k"],
             predicted_weight_18k=prediction_data["predicted_weight_18k"],
+            min_weight_14k=prediction_data.get("min_weight_14k"),
+            max_weight_14k=prediction_data.get("max_weight_14k"),
+            min_weight_18k=prediction_data.get("min_weight_18k"),
+            max_weight_18k=prediction_data.get("max_weight_18k"),
+            min_weight_22k=prediction_data.get("min_weight_22k"),
+            max_weight_22k=prediction_data.get("max_weight_22k"),
             llm_explanation=prediction_data["explanation"],
             raw_response={
                 "llm_raw": prediction_data["raw"],
@@ -147,3 +170,63 @@ async def get_prediction_history(db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
     result = await db.execute(select(Prediction).order_by(Prediction.created_at.desc()))
     return result.scalars().all()
+
+@router.post("/ingest", response_model=VerifiedDesignResponse)
+async def ingest_verified_design(
+    product_name: str = Form(...),
+    karat: str = Form(...), # e.g. "18K", "14K"
+    actual_weight_g: float = Form(...),
+    ring_size: float = Form(None),
+    stone_ct: float = Form(0.0),
+    image: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Adds a verified design to the training pool (RAG)."""
+    # 1. Save Image
+    os.makedirs("data/images", exist_ok=True)
+    image_filename = f"{uuid.uuid4()}{os.path.splitext(image.filename)[1]}"
+    image_path = os.path.join("data/images", image_filename)
+    image_bytes = await image.read()
+    
+    with open(image_path, "wb") as f:
+        f.write(image_bytes)
+
+    # 2. Calculate Volume from Weight/Karat (for internal reference)
+    density = GOLD_DENSITIES.get(karat.upper(), GOLD_DENSITIES["18K"])
+    estimated_volume = actual_weight_g / density
+
+    # 3. Save to SQL
+    from app.models.prediction import VerifiedDesign
+    new_design = VerifiedDesign(
+        product_name=product_name,
+        karat=karat,
+        actual_weight_g=actual_weight_g,
+        estimated_volume_mm3=estimated_volume,
+        ring_size=ring_size,
+        stone_ct=stone_ct,
+        image_path=image_path
+    )
+    db.add(new_design)
+    await db.commit()
+    await db.refresh(new_design)
+
+    # 4. Add to Vector DB (RAG)
+    clip = get_clip_encoder()
+    vdb = get_vector_db()
+    embedding = clip.get_image_embedding(image_bytes)
+    
+    vdb.add_prediction(
+        prediction_id=f"verified_{new_design.id}",
+        embedding=embedding,
+        metadata={
+            "product_id": f"v_{new_design.id}",
+            "product_name": product_name,
+            "actual_weight_g": actual_weight_g,
+            "actual_volume_mm3": estimated_volume,
+            "karat": karat,
+            "ring_size": ring_size,
+            "stone_ct": stone_ct
+        }
+    )
+
+    return new_design

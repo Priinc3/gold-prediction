@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Save, Shield, Key, Database, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import TrainingDataForm from './TrainingDataForm';
 
 const AdminPanel: React.FC = () => {
   const [settings, setSettings] = useState({
@@ -43,7 +44,6 @@ const AdminPanel: React.FC = () => {
         gemini_api_key: settings.gemini_api_key
       });
       setMessage({ type: 'success', text: 'Settings updated successfully!' });
-      // Refresh to update the "has_key" status
       fetchSettings();
     } catch (err) {
       console.error('Failed to update settings:', err);
@@ -67,11 +67,11 @@ const AdminPanel: React.FC = () => {
         <Shield className="h-5 w-5 text-blue-600 mr-3 mt-0.5" />
         <div className="text-sm text-blue-800">
           <p className="font-semibold">Administrator Access</p>
-          <p className="mt-1">Manage API keys and AI provider preferences. Settings are saved securely to the local system.</p>
+          <p className="mt-1">Manage API keys and add verified designs to the training library.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-8 mb-12">
         {/* Provider Selection */}
         <div>
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
@@ -89,7 +89,7 @@ const AdminPanel: React.FC = () => {
                 className="sr-only" 
               />
               <span className="font-bold text-[#111827]">Google Gemini</span>
-              <span className="text-xs text-gray-500 mt-1">Fast & efficient (Gemini 1.5 Flash)</span>
+              <span className="text-xs text-gray-500 mt-1">Fast & efficient (Gemini 3 Flash)</span>
               {settings.has_gemini && (
                 <span className="absolute top-4 right-4 text-green-600">
                   <CheckCircle2 className="h-4 w-4" />
@@ -173,6 +173,10 @@ const AdminPanel: React.FC = () => {
           )}
         </button>
       </form>
+
+      <hr className="border-gray-100 my-12" />
+
+      <TrainingDataForm />
     </div>
   );
 };
