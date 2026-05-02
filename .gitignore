@@ -14,6 +14,10 @@ dist/
 backend/data/*.db
 data/chroma_db/
 backend/data/images/
+Tanishq_Jewelry_Dataset_Final/images/
+*.jpg
+*.png
+*.jpeg
 
 # System
 .DS_Store
