@@ -64,8 +64,28 @@ PINECONE_INDEX_NAME=ring-designs
 VECTOR_DB_TYPE=pinecone
 ```
 
-## 6. Common Troubleshooting
-- **ModuleNotFoundError: pandas**: Run `pip install pandas`.
-- **RuntimeError: operator torchvision::nms**: Ensure you are using Python 3.11 and the correct conda environment.
-- **Connection Refused**: Check if uvicorn is running (`ps aux | grep uvicorn`) and if the `.env` file exists.
-- **ChromaDB Error**: Ensure `VECTOR_DB_TYPE=pinecone` is set in `.env` if not using local storage.
+## 7. Enhanced Density-Based RAG (New)
+To switch to high-precision density-based RAG, run these scripts on the EC2 instance:
+
+```bash
+# 1. Create the new density-based CSV
+python3 create_density_dataset.py
+
+# 2. Setup the new Pinecone index (ring-designs-v2)
+python3 setup_pinecone.py
+
+# 3. Ingest the data ( CLIP encoding + Upsert )
+python3 ingest_density_rag.py
+```
+
+## 8. Feedback Loop
+The system now includes a feedback endpoint (`/api/v1/feedback`). When a user submits an actual weight, the backend:
+1. Calculates the true volume: `Actual Weight / Density`.
+2. Updates the Vector DB (`ring-designs-v2`) with the verified design.
+3. This improved data is used automatically for all future RAG queries.
+
+## 9. Configuration (.env)
+Ensure your `.env` points to the new index:
+```env
+PINECONE_INDEX_NAME=ring-designs-v2
+```

@@ -16,7 +16,7 @@ PINECONE_INDEX_NAME = "ring-designs-v2" # New index for density RAG
 
 # CLIP Setup
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B-32", device=device)
+model, preprocess = clip.load("ViT-B/32", device=device)
 
 def get_image_embedding(image_path):
     try:
@@ -67,17 +67,21 @@ def ingest_data():
             
         embedding = get_image_embedding(actual_path)
         if embedding:
+            meta = {
+                "product_name": str(row['product_name']),
+                "actual_weight_g": float(row['gold_weight_grams']),
+                "actual_volume_mm3": float(row['design_volume_mm3']),
+                "karat": str(row['gold_karat_purity']),
+                "diamond_weight_carats": float(row['diamond_carat']),
+                "is_verified": True
+            }
+            # Remove nulls/NaNs
+            clean_meta = {k: v for k, v in meta.items() if v is not None and not (isinstance(v, float) and pd.isna(v))}
+            
             vectors.append({
                 "id": str(row['product_id']),
                 "values": embedding,
-                "metadata": {
-                    "product_name": str(row['product_name']),
-                    "actual_weight_g": float(row['gold_weight_grams']),
-                    "actual_volume_mm3": float(row['design_volume_mm3']),
-                    "karat": str(row['gold_karat_purity']),
-                    "diamond_weight_carats": float(row['diamond_carat']),
-                    "is_verified": True
-                }
+                "metadata": clean_meta
             })
             
         if len(vectors) >= batch_size:
