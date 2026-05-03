@@ -41,7 +41,15 @@ class SimilarExample(BaseModel):
     product_name: Optional[str] = None
     params: Dict[str, Any]
     actual_weight: float
+    actual_volume_mm3: Optional[float] = None
     score: float
+
+class PredictionFeedback(BaseModel):
+    prediction_id: int
+    is_correct: bool
+    actual_weight_g: Optional[float] = None
+    actual_karat: Optional[str] = None # e.g. "18K"
+    actual_diamond_carat: Optional[float] = 0.0
 
 class UnifiedPredictionResponse(BaseModel):
     prediction: PredictionResponse

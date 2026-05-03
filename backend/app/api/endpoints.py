@@ -137,33 +137,92 @@ async def predict_gold_weight(
         await db.commit()
         await db.refresh(new_prediction)
         
-        logger.info(f"Prediction saved with ID: {new_prediction.id}")
-        
-        # Phase 2: Add to Vector DB for future retrieval (only if prediction succeeded)
-        if prediction_data["predicted_weight_14k"] > 0:
-            chroma_metadata = {k: v for k, v in params.items() if v is not None}
-            chroma_metadata.update({
-                "predicted_weight_14k": float(prediction_data["predicted_weight_14k"]),
-                "predicted_weight_18k": float(prediction_data["predicted_weight_18k"])
-            })
+        from app.models.schemas import PredictionResponse, UnifiedPredictionResponse, VerifiedDesignCreate, VerifiedDesignResponse, PredictionFeedback
+        ...
+                # Phase 2: Add to Vector DB for future retrieval (only if prediction succeeded)
+                if prediction_data["predicted_weight_14k"] > 0:
+                    # Metadata for RAG - we now focus on Design Density/Volume
+                    rag_metadata = {k: v for k, v in params.items() if v is not None}
+                    rag_metadata.update({
+                        "predicted_volume_mm3": float(prediction_data.get("estimated_volume_mm3", 0)),
+                        "predicted_weight_14k": float(prediction_data["predicted_weight_14k"]),
+                        "predicted_weight_18k": float(prediction_data["predicted_weight_18k"]),
+                        "is_ai_generated": True
+                    })
 
-            vdb.add_prediction(
-                prediction_id=str(new_prediction.id),
-                embedding=embedding,
-                metadata=chroma_metadata
-            )
-        else:
-            logger.warning("Prediction weight is 0.0, skipping Vector DB update.")
-        
-        # Return prediction + RAG results
-        return {
-            "prediction": new_prediction,
-            "similar_examples": similar_examples
-        }
-        
-    except Exception as e:
-        logger.error(f"Prediction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+                    vdb.add_prediction(
+                        prediction_id=str(new_prediction.id),
+                        embedding=embedding,
+                        metadata=rag_metadata
+                    )
+                else:
+                    logger.warning("Prediction weight is 0.0, skipping Vector DB update.")
+
+                # Return prediction + RAG results
+                return {
+                    "prediction": new_prediction,
+                    "similar_examples": similar_examples
+                }
+
+            except Exception as e:
+                logger.error(f"Prediction failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @router.post("/feedback")
+        async def submit_prediction_feedback(
+            feedback: PredictionFeedback,
+            db: AsyncSession = Depends(get_db)
+        ):
+            """
+            User feedback endpoint: Converts actual weight to volume/density 
+            and updates the Vector DB for better future RAG accuracy.
+            """
+            try:
+                from sqlalchemy import select
+                result = await db.execute(select(Prediction).where(Prediction.id == feedback.prediction_id))
+                prediction = result.scalar_one_or_none()
+
+                if not prediction:
+                    raise HTTPException(status_code=404, detail="Prediction not found")
+
+                # 1. Update SQL record if weight provided
+                if feedback.actual_weight_g and feedback.actual_karat:
+                    density = GOLD_DENSITIES.get(feedback.actual_karat.upper(), GOLD_DENSITIES["18K"])
+                    actual_volume = feedback.actual_weight_g / density
+
+                    # Use specific log field or update existing (simplified for now)
+                    prediction.llm_explanation += f"\n\n[USER FEEDBACK]: Actual weight {feedback.actual_weight_g}g ({feedback.actual_karat})."
+                    await db.commit()
+
+                    # 2. Re-encode and update Vector DB with CORRECT data
+                    # This makes the "memory" much more accurate
+                    if os.path.exists(prediction.image_path):
+                        with open(prediction.image_path, "rb") as f:
+                            image_bytes = f.read()
+
+                        clip = get_clip_encoder()
+                        vdb = get_vector_db()
+                        embedding = clip.get_image_embedding(image_bytes)
+
+                        vdb.add_prediction(
+                            prediction_id=str(prediction.id),
+                            embedding=embedding,
+                            metadata={
+                                "product_id": f"fb_{prediction.id}",
+                                "actual_weight_g": feedback.actual_weight_g,
+                                "actual_volume_mm3": actual_volume,
+                                "karat": feedback.actual_karat,
+                                "diamond_weight_carats": feedback.actual_diamond_carat,
+                                "is_verified": True
+                            }
+                        )
+                        logger.info(f"Updated Vector DB with user feedback for prediction {prediction.id}")
+
+                return {"status": "success", "message": "Feedback recorded and indexed"}
+            except Exception as e:
+                logger.error(f"Feedback submission failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/history", response_model=list[PredictionResponse])
 async def get_prediction_history(db: AsyncSession = Depends(get_db)):

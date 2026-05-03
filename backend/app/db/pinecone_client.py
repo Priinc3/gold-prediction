@@ -67,17 +67,16 @@ class PineconeDB:
         for match in results['matches']:
             meta = match['metadata']
             
-            # Map dataset fields or prediction fields
+            # Priority 1: Use actual_volume_mm3 (Density-Independent)
+            # Priority 2: Calculate from weight and karat
+            volume = meta.get("actual_volume_mm3")
             weight = meta.get("actual_weight_g") or meta.get("predicted_weight_14k")
             karat = str(meta.get("karat", "18K")).upper()
-            
-            # Use pre-calculated volume if available, otherwise calculate on the fly
-            volume = meta.get("actual_volume_mm3")
+            stone_ct = meta.get("diamond_weight_carats") or meta.get("stone_ct") or 0.0
+
             if volume is None and weight is not None:
                 density = GOLD_DENSITIES.get(karat, GOLD_DENSITIES["18K"])
                 volume = weight / density
-
-            stone_ct = meta.get("diamond_weight_carats") or meta.get("stone_ct") or 0.0
             
             formatted.append({
                 "product_id": meta.get("product_id"),

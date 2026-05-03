@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Vector DB Preference: "chroma" or "pinecone"
     VECTOR_DB_TYPE: str = "chroma"
     PINECONE_API_KEY: Optional[str] = None
-    PINECONE_INDEX_NAME: str = "ring-designs"
+    PINECONE_INDEX_NAME: str = "ring-designs-v2"
     
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

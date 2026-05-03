@@ -37,6 +37,31 @@ const PredictionForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [actualWeight, setActualWeight] = useState('');
+  const [actualKarat, setActualKarat] = useState('18K');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  const handleFeedback = async (isCorrect: boolean) => {
+    if (!result) return;
+    
+    setIsSubmittingFeedback(true);
+    try {
+      await axios.post(API_BASE_URL + '/feedback', {
+        prediction_id: result.prediction?.id || result.id,
+        is_correct: isCorrect,
+        actual_weight_g: actualWeight ? parseFloat(actualWeight) : null,
+        actual_karat: actualKarat,
+        actual_diamond_carat: formData.stone_ct ? parseFloat(formData.stone_ct) : 0
+      });
+      setFeedbackSubmitted(true);
+    } catch (err) {
+      console.error('Feedback failed:', err);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -146,6 +171,67 @@ const PredictionForm: React.FC = () => {
           <p className="text-gray-700 text-sm leading-relaxed bg-white border border-gray-100 p-4 rounded-xl shadow-sm italic">
             "{prediction.llm_explanation}"
           </p>
+        </div>
+
+        {/* FEEDBACK SECTION */}
+        <div className="mt-8 bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+          <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+            <CheckCircle2 className="h-4 w-4 mr-2 text-accent" />
+            Was this prediction accurate?
+          </h4>
+          
+          {!feedbackSubmitted ? (
+            <div className="space-y-4">
+              <div className="flex space-x-4">
+                <button 
+                  onClick={() => handleFeedback(true)}
+                  className="flex-1 py-3 px-4 rounded-xl border-2 border-green-500 text-green-600 font-bold hover:bg-green-50 transition-colors"
+                >
+                  Yes, Accurate
+                </button>
+                <button 
+                  onClick={() => handleFeedback(false)}
+                  className="flex-1 py-3 px-4 rounded-xl border-2 border-red-500 text-red-600 font-bold hover:bg-red-50 transition-colors"
+                >
+                  No, Needs Fix
+                </button>
+              </div>
+              
+              <div className="pt-4 border-t border-gray-50">
+                <p className="text-xs text-gray-500 mb-3">Provide actual data to improve the AI's future accuracy:</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <input 
+                    type="number" 
+                    placeholder="Actual Weight (g)" 
+                    value={actualWeight}
+                    onChange={(e) => setActualWeight(e.target.value)}
+                    className="p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-accent text-sm"
+                  />
+                  <select 
+                    value={actualKarat}
+                    onChange={(e) => setActualKarat(e.target.value)}
+                    className="p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-accent text-sm"
+                  >
+                    <option value="14K">14K</option>
+                    <option value="18K">18K</option>
+                    <option value="22K">22K</option>
+                    <option value="24K">24K</option>
+                  </select>
+                </div>
+                <button 
+                  onClick={() => handleFeedback(false)}
+                  disabled={!actualWeight || isSubmittingFeedback}
+                  className="w-full mt-4 bg-accent text-white py-3 rounded-xl font-bold hover:bg-accent/90 transition-all disabled:opacity-50"
+                >
+                  {isSubmittingFeedback ? 'Syncing with Vector DB...' : 'Submit Actual Data'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-green-50 text-green-700 p-4 rounded-xl text-center text-sm font-medium border border-green-100">
+              Thank you! This data has been converted to design density and re-indexed into Pinecone to improve future RAG results.
+            </div>
+          )}
         </div>
 
         {similar_examples.length > 0 && (
