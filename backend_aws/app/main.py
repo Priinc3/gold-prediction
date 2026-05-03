@@ -1,5 +1,4 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.endpoints import router as api_router
@@ -37,23 +36,6 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-# Serve frontend static files
-if os.path.isdir("static"):
-    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
-
-    @app.get("/{full_path:path}")
-    async def serve_frontend(request: Request, full_path: str):
-        if full_path.startswith("api/") or full_path.startswith("data/"):
-            # Let API routes pass through if they 404
-            return {"detail": "Not Found"}
-            
-        static_file_path = os.path.join("static", full_path)
-        if os.path.isfile(static_file_path):
-            return FileResponse(static_file_path)
-            
-        # Fallback to index.html for SPA
-        return FileResponse(os.path.join("static", "index.html"))
-else:
-    @app.get("/")
-    async def root():
-        return {"message": "Welcome to the Gold Weight Prediction API"}
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Gold Weight Prediction API"}

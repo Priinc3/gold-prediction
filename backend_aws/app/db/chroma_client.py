@@ -1,10 +1,10 @@
+import chromadb
 from app.core.config import settings
 from loguru import logger
 import os
 
 class ChromaDB:
     def __init__(self):
-        import chromadb
         os.makedirs(settings.CHROMA_DB_PATH, exist_ok=True)
         self.client = chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
         self.collection = self.client.get_or_create_collection(
