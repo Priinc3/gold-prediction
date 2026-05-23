@@ -21,3 +21,7 @@ Tanishq_Jewelry_Dataset_Final/images/
 
 # System
 .DS_Store
+*.log
+*.zip
+lastsession.json
+.obsidian/

@@ -6,6 +6,7 @@ from app.api.endpoints import router as api_router
 from app.api.settings import router as settings_router
 from app.core.config import settings
 from app.db.session import engine, Base
+from loguru import logger
 import os
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -36,6 +37,11 @@ async def startup():
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+    # Pre-load CLIP Model
+    from app.core.embeddings import get_clip_encoder
+    logger.info("Pre-loading CLIP model for faster predictions...")
+    get_clip_encoder()
 
 # Serve frontend static files
 if os.path.isdir("static"):

@@ -34,6 +34,7 @@ class Prediction(Base):
     
     llm_explanation = Column(String)
     raw_response = Column(JSON)
+    size_variations = Column(JSON, nullable=True) # New: store scaled weights for multiple sizes
     
     created_at = Column(DateTime, default=datetime.utcnow)
 

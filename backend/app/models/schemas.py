@@ -4,6 +4,7 @@ from datetime import datetime
 
 class PredictionCreate(BaseModel):
     ring_size: Optional[float] = None
+    target_sizes: Optional[List[float]] = [] # New: multiple target sizes
     inner_diameter_mm: Optional[float] = None
     band_width_mm: Optional[float] = None
     band_thickness_mm: Optional[float] = None
@@ -13,6 +14,13 @@ class PredictionCreate(BaseModel):
     side_stone_count: Optional[int] = 0
     side_stone_ct: Optional[float] = 0.0
 
+class SizeVariation(BaseModel):
+    ring_size: float
+    weight_14k: float
+    weight_18k: float
+    weight_22k: float
+    volume_mm3: float
+
 class PredictionResponse(BaseModel):
     id: int
     predicted_weight_14k: float
@@ -20,6 +28,9 @@ class PredictionResponse(BaseModel):
     
     # Volume base
     estimated_volume_mm3: Optional[float] = None
+    
+    # New: Multi-size results
+    size_variations: Optional[List[SizeVariation]] = []
     
     # Range fields
     min_weight_14k: Optional[float] = None
@@ -39,6 +50,7 @@ class PredictionResponse(BaseModel):
 class SimilarExample(BaseModel):
     product_id: Optional[str] = None
     product_name: Optional[str] = None
+    karat: Optional[str] = None
     params: Dict[str, Any]
     actual_weight: float
     actual_volume_mm3: Optional[float] = None
