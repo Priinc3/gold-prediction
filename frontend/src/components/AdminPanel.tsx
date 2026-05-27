@@ -75,7 +75,7 @@ const AdminPanel: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput !== '774623') {
-      setMessage({ type: 'error', text: 'Authorization Required: Please enter the correct admin password (774623) to apply changes.' });
+      setMessage({ type: 'error', text: 'Authorization Required: Please enter the correct admin password to apply changes.' });
       return;
     }
 
@@ -151,7 +151,7 @@ const AdminPanel: React.FC = () => {
             type="password"
             value={passwordInput}
             onChange={(e) => setPasswordInput(e.target.value)}
-            placeholder="Type password (774623) to edit credentials..."
+            placeholder="Type admin password to edit credentials..."
             className={`w-full p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-accent transition-all text-sm font-bold tracking-widest ${
               isUnlocked ? 'border-green-300 bg-green-50/10 focus:ring-green-400' : 'border-gray-200 focus:border-red-400'
             }`}
