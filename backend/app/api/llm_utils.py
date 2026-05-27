@@ -123,13 +123,12 @@ def get_prompt(params: dict, similar_examples: list = None, standard: str = "Ind
     }}
     """
 
-async def get_gemini_prediction(image_bytes_list: list[bytes], params: dict, api_key: str, similar_examples: list = None, standard: str = "Indian"):
-    logger.info(f"Initialising Gemini AI (gemini-3.1-flash-lite-preview) with {len(image_bytes_list)} images...")
+async def get_gemini_prediction(image_bytes_list: list[bytes], params: dict, api_key: str, similar_examples: list = None, standard: str = "Indian", model_id: str = "gemini-2.5-flash"):
+    logger.info(f"Initialising Gemini AI ({model_id}) with {len(image_bytes_list)} images...")
     
     try:
         # Using the new google-genai SDK
         client = genai.Client(api_key=api_key, http_options={'api_version': 'v1beta'})
-        model_id = 'gemini-3.1-flash-lite-preview'
         
         logger.info("Generating prompt...")
         prompt = get_prompt(params, similar_examples, standard)
@@ -272,17 +271,18 @@ async def get_llm_prediction(image_bytes_list: list[bytes], params: dict, config
     provider = config.get("default_llm", settings.DEFAULT_LLM)
     gemini_key = config.get("gemini_api_key") or settings.GEMINI_API_KEY
     anthropic_key = config.get("anthropic_api_key") or settings.ANTHROPIC_API_KEY
+    gemini_model = config.get("gemini_model") or "gemini-2.5-flash"
     
     try:
         if provider == "gemini" and gemini_key:
-            return await get_gemini_prediction(image_bytes_list, params, gemini_key, similar_examples, standard)
+            return await get_gemini_prediction(image_bytes_list, params, gemini_key, similar_examples, standard, gemini_model)
         elif provider == "anthropic" and anthropic_key:
             # Anthropic only uses the first image for now
             return await get_anthropic_prediction(image_bytes_list[0], params, anthropic_key, similar_examples, standard)
         else:
             # Fallback
             if gemini_key:
-                return await get_gemini_prediction(image_bytes_list, params, gemini_key, similar_examples, standard)
+                return await get_gemini_prediction(image_bytes_list, params, gemini_key, similar_examples, standard, gemini_model)
             
             return {
                 "predicted_weight_14k": 0.0,
