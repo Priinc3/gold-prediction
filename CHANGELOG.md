@@ -4,7 +4,60 @@ Format: [YYYY-MM-DD] | [vX.X.X] | [Type: Added/Fixed/Changed/Removed]
 
 ---
 
-## [Unreleased]
+## [0.6.1] — 2026-07-03
+
+### Added
+- **AWS Backend Deployment:** Deployed `backend_aws` FastAPI service to EC2 `13.207.220.204` and verified public access on port `8000`.
+- **Vercel Frontend Deployment:** Deployed `frontend/` to Vercel at `https://gold-weight-frontend.vercel.app`.
+- **Same-Domain API Proxy:** Added Vercel rewrites so `/api/v1/*` proxies to the EC2 backend without browser mixed-content blocking.
+- **Deployment Runbook:** Added `docs/deploy_guide.md` with the current working backend/frontend folders, Pinecone index, EC2 commands, Vercel deploy steps, verification commands, and known failure fixes.
+
+### Fixed
+- **Public Settings Secret Exposure:** Updated the backend settings endpoint to return provider availability flags without returning API key values.
+- **Python 3.14 Deploy Compatibility:** Relaxed `backend_aws` dependency pins for Pydantic and Pillow so the EC2 default Python runtime can install binary wheels instead of failing source builds.
+- **Environment Parsing:** Configured backend settings to ignore unrelated `.env` keys during startup.
+- **RAG Dimension Mismatch:** Replaced the EC2 `backend_aws` deployment, which produced 3072-dim Gemini embeddings, with the `backend/` CLIP deployment that produces 512-dim vectors matching the populated `ring-designs-v3` Pinecone index.
+- **CPU Torch Deployment:** Forced CPU-only Torch/Torchvision wheels in `backend/requirements.txt` to avoid pulling multi-GB CUDA packages on the small EC2 root volume.
+- **Frontend Deployment Target:** Switched the active Vercel frontend from `frontend_aws/` to the correct `frontend/` folder and added `.vercelignore` to avoid uploading `node_modules`.
+
+---
+
+## [0.6.0] — 2026-07-02
+
+### Added
+- **NVIDIA GRID GPU Driver Configuration:** Resolved NVML initialization errors on the partitioned remote Azure VM (20.211.122.9) by purging standard NVIDIA drivers, disabling Secure Boot, and installing the correct vGPU 18.5 (570.195.03) GRID driver, enabling the virtual NVIDIA A10-24Q GPU with 24.5 GB VRAM.
+- **Remote PyTorch/CUDA Virtual Environment:** Created a virtual environment on the VM, installing PyTorch aligned with CUDA 12 and required training libraries (transformers, accelerate, peft, trl, bitsandbytes, datasets, tensorboard).
+- **Hugging Face Hub Authentication:** Authenticated the remote VM with the user's Hugging Face credentials for rate-limit-free downloads.
+- **Dynamic Training Script Arguments:** Integrated `argparse` into `train_qwen_lora.py` to allow overriding parameters like epochs, steps, batch sizes, and data workers from the command line.
+- **Successful Training Dry Run:** Verified the full pipeline on the remote GPU by completing a 5-step test run (forward passes, loss calculations, backprop updates, checkpoint saving) in under 30 seconds.
+- **Full Fine-Tuning Execution (3 Epochs):** Successfully executed the full fine-tuning run (267 steps, representing 3 epochs over 1,421 items) in 2 hours 57 minutes on the A10 GPU. The training loss converged to `6.765`, and the validation loss (`eval_loss`) settled at `6.626` (indicating steady generalization without overfitting). Final adapter checkpoints were successfully saved on the VM.
+
+### Fixed
+- **Missing PIL Import:** Added the missing `from PIL import Image` statement in `train_qwen_lora.py` to fix NameError crashes during batch compilation.
+- **SSH Unicode Decoding Error:** Implemented `LANG=C.UTF-8` and `LC_ALL=C.UTF-8` environment variables during execution to prevent Hugging Face's model card generator from crashing on non-ASCII characters inside non-interactive SSH terminals.
+
+### Added
+- **Fresh MLX Fine-Tuning Run (160 Iterations):** Successfully completed a fresh 1-hour local training run (160 iterations) using MLX with `--max-seq-length 2048`. Loss decreased steadily from `11.77` to `6.98`, with final validation loss at `7.20`.
+- **W&B Log Syncing:** Uploaded the offline training metrics for run `tvb70dd5` to the cloud Weights & Biases dashboard.
+- **Adapter Checkpoints Created:** Saved progressive adapter checkpoints (`0000050`, `0000100`, `0000150`) and final `adapters.safetensors` under `Tanishq_Jewelry_Dataset_Final/qwen2.5_vl_lora_output_mlx/`.
+
+### Added
+- **Tokenization Caching to Google Drive:** Implemented pre-tokenization caching for Qwen2.5-VL training dataset splits using Hugging Face's `save_to_disk` and `load_from_disk`. This allows Google Colab and local training scripts to skip tokenization overhead on subsequent runs, loading the processed inputs in under 1 second.
+- **Custom Batch Collator for Multimodal Tensors:** Created a robust `collate_fn` that dynamically pads token lists (`input_ids`, `attention_mask`, `labels`) and stacks/concatenates multimodal image patch inputs (`pixel_values`, `image_grid_thw`) along dimension 0. This bypasses the default SFTTrainer column removal crash and supports pre-tokenized inputs out-of-the-box.
+- **3D Model Generation Pipeline:** Cloned Tencent Hunyuan3D-2 locally into the new `3D_model/` directory.
+- **Local Mac Inference Support:** Created [local_generator.py](file:///Users/princegondaliya/Learning/Projects/Boostify/Projects/Gold_weight_prediction/3D_model/local_generator.py) to execute image-to-3D shape generation on local CPU/MPS devices.
+- **API Fallback Generator:** Implemented [gradio_generator.py](file:///Users/princegondaliya/Learning/Projects/Boostify/Projects/Gold_weight_prediction/3D_model/gradio_generator.py) to trigger remote mesh generation via Hugging Face Gradio client.
+- **Predefined Weights Calibration:** Researched and established mathematical scaling calculations for ring models to achieve >99% gold weight prediction precision.
+- **Qwen2.5-VL Dataset Formatting:** Implemented [prepare_qwen_dataset.py](file:///Users/princegondaliya/Learning/Projects/Boostify/Projects/Gold_weight_prediction/Tanishq_Jewelry_Dataset_Final/prepare_qwen_dataset.py) to parse the unified catalog, validate 3,700+ local images, and output train/val conversational splits.
+- **Qwen2.5-VL LoRA Training Template:** Created [train_qwen_lora.py](file:///Users/princegondaliya/Learning/Projects/Boostify/Projects/Gold_weight_prediction/scratch/train_qwen_lora.py) to enable custom visual SFT fine-tuning with transformers and PEFT/trl on cloud GPUs.
+- **Hugging Face Version Support:** Added try/except fallback loaders for vision models supporting both transformers v4.x (`AutoModelForVision2Seq`) and v5.x (`AutoModelForImageTextToText` / `Qwen2_5_VLForConditionalGeneration`) to prevent training crashes on Google Colab runtimes.
+- **Hugging Face Parameter Compatibility:** Changed `evaluation_strategy` to `eval_strategy` in `TrainingArguments` to align with the deprecation/removal of the old parameter name in `transformers` v5.0+.
+- **TRL SFTTrainer Double PEFT Wrapper Fix:** Removed duplicate `peft_config` parameter from `SFTTrainer` to prevent double-wrapping errors when passing pre-wrapped QLoRA PEFT models.
+- **Cross-Platform File Casing Fix:** Resolved a case-sensitivity mismatch between macOS and Google Colab Linux by dynamically matching filenames case-insensitively and writing the exact physical filesystem casing to the JSON splits, avoiding tokenization image-loading crashes.
+
+### Changed
+- **Cleaned Up Local Weights:** Removed the ~11 GB cached model checkpoints (`~/.cache/huggingface/hub/models--tencent--Hunyuan3D-2` and `~/.cache/hy3dgen`) because local M4 CPU/MPS inference took too long for active batch prediction.
+- **Optimized Local Generator:** Enabled FlashVDM and set `num_inference_steps=20` for faster local generation in `local_generator.py`.
 
 ---
 

@@ -46,10 +46,10 @@ class PineconeDB:
         logger.info(f"PineconeDB initialized with index {self.index_name}")
 
     def add_prediction(self, prediction_id: str, embedding: list, metadata: dict):
-        import pandas as pd
+        import math
         clean_metadata = {}
         for k, v in metadata.items():
-            if v is not None and not (isinstance(v, float) and pd.isna(v)):
+            if v is not None and not (isinstance(v, float) and math.isnan(v)):
                 clean_metadata[k] = v
 
         self.index.upsert(

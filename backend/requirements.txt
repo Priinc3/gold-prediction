@@ -12,7 +12,8 @@ google-generativeai==0.8.3
 google-genai==0.1.0
 gunicorn==23.0.0
 numpy<2.0.0
-torch --index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1+cpu
+torchvision==0.19.1+cpu
 open-clip-torch==2.26.1
 pillow==10.4.0
 pinecone==6.0.0

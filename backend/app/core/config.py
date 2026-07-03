@@ -21,6 +21,6 @@ class Settings(BaseSettings):
     PINECONE_INDEX_NAME: str = "ring-designs-v2"
     PINECONE_INDEX_HOST: Optional[str] = None
     
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 settings = Settings()
