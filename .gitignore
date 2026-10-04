@@ -18,6 +18,11 @@ Tanishq_Jewelry_Dataset_Final/images/
 *.jpg
 *.png
 *.jpeg
+# README media is tracked on purpose
+!docs/assets/*.png
+!docs/assets/*.webp
+!docs/assets/*.gif
+!docs/assets/*.svg
 
 # System
 .DS_Store
